@@ -9,6 +9,7 @@ from . import debugevents
 from . import handles
 from . import terminal
 from . import PY2
+from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -514,7 +515,7 @@ class DebugSession:
 class UserError(Exception):
     pass
 
-def opt_str(s):
+def opt_str(s): # type: (Optional[str]) -> Optional[str]
     return str(s) if s != None else None
 
-string_type = basestring if PY2 else str
+string_type = getattr(__builtins__, 'basestring') if PY2 else str
