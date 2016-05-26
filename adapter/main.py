@@ -33,13 +33,13 @@ def run_tcp_server(port=4711):
     init_logging(False)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     ls.bind(('127.0.0.1', port))
     ls.listen(1)
 
     while True:
         conn, addr = ls.accept()
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        #conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info("New connection from %s", addr)
         run_session(conn.recv, conn.send)
         conn.close()

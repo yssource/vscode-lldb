@@ -3,6 +3,7 @@ import json
 import string
 import logging
 import sys
+from typing import Callable
 
 log = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ class ProtocolHandler:
 
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write(buffer)`: callback to write bytes into the output stream.
-    def __init__(self, read, write):
+    def __init__(self, read, write): # type: (ProtocolHandler, Callable[[int], bytes], Callable[[bytes], int]) -> None
         self.read = read
         self.write = write
         self.ibuffer = b''
@@ -73,12 +74,12 @@ class ProtocolHandler:
         except StopIteration: # Thrown when read() returns 0
             self.handle_request(None)
         except Exception as e:
-            log.error(e)
+            log.error(str(e))
             self.handle_request(None)
 
     def send_message(self, message):
         data = json.dumps(message)
         log.debug('<- %s', data)
-        data = data.encode('utf-8')
-        self.write(b'Content-Length: %d\r\n\r\n' % len(data))
-        self.write(data)
+        enc_data = data.encode('utf-8')
+        self.write(b'Content-Length: %d\r\n\r\n' % len(enc_data))
+        self.write(enc_data)

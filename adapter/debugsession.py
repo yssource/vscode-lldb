@@ -9,25 +9,25 @@ from . import debugevents
 from . import handles
 from . import terminal
 from . import PY2
-from typing import Optional
+from typing import Dict, List, Optional, Any
 
 log = logging.getLogger(__name__)
 
 class DebugSession:
 
-    def __init__(self, event_loop, send_message):
-        DebugSession.current = self
+    def __init__(self, event_loop, send_message): # type: (DebugSession, Any, Any) -> None
+        #DebugSession.current = self
         self.event_loop = event_loop
         self.send_message = send_message
         self.var_refs = handles.Handles()
-        self.breakpoints = dict() # { file : { line : SBBreakpoint } }
-        self.fn_breakpoints = dict() # { name : SBBreakpoint }
-        self.exc_breakpoints = []
-        self.target = None
-        self.process = None
-        self.threads = set()
-        self.terminal = None
-        self.launch_args = None
+        self.breakpoints = {} # type: Dict[str, Dict[int, lldb.SBBreakpoint]]
+        self.fn_breakpoints = {} # type: Dict[str, lldb.SBBreakpoint]
+        self.exc_breakpoints = [] # type: List[lldb.SBBreakpoint]
+        self.target = None # type: Optional[lldb.SBTarget]
+        self.process = None # type: Optional[lldb.SBProcess]
+        self.threads = set() # type: set
+        self.terminal = None # type: Optional[terminal.Terminal]
+        self.launch_args = None # type: Any
 
     # handles messages from VSCode
     def handle_message(self, msg):
@@ -37,7 +37,7 @@ class DebugSession:
     def handle_event(self, event):
         self.event_loop.dispatch1(self.on_target_event, event)
 
-    def initialize_request(self, args):
+    def initialize_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
         self.debugger = lldb.SBDebugger.Create()
@@ -50,7 +50,7 @@ class DebugSession:
                  'supportsFunctionBreakpoints': True,
                  'supportsConditionalBreakpoints': True }
 
-    def launch_request(self, args):
+    def launch_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
         if not self.target.IsValid():
@@ -120,7 +120,7 @@ class DebugSession:
             assert stop_on_entry
             self.notify_target_stopped(None)
 
-    def attach_request(self, args):
+    def attach_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
         if not self.target.IsValid():
@@ -153,7 +153,7 @@ class DebugSession:
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
                 self.console_msg(output)
 
-    def setBreakpoints_request(self, args):
+    def setBreakpoints_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         source = args['source']
         file = str(source['path'])
         req_bps = args['breakpoints']
@@ -180,7 +180,7 @@ class DebugSession:
 
         return { 'breakpoints': result }
 
-    def setFunctionBreakpoints_request(self, args):
+    def setFunctionBreakpoints_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         # Breakpoint requests indexed by function name
         req_bps =  args['breakpoints']
         req_bp_names = [req['name'] for req in req_bps]
@@ -215,7 +215,7 @@ class DebugSession:
         source = { 'name': fs.basename, 'path': fs.fullpath }
         return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
 
-    def setExceptionBreakpoints_request(self, args):
+    def setExceptionBreakpoints_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         filters = args['filters']
         for bp in self.exc_breakpoints:
             self.target.BreakpointDelete(bp.GetID())
@@ -241,10 +241,10 @@ class DebugSession:
                 lambda target: target.BreakpointCreateByName('terminate')),
     }
 
-    def configurationDone_request(self, args):
+    def configurationDone_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.do_launch()
 
-    def pause_request(self, args):
+    def pause_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.process.Stop()
 
     def continue_request(self, args):
@@ -447,7 +447,8 @@ class DebugSession:
 
     def notify_target_stopped(self, lldb_event):
         self.notify_live_threads()
-        event = { 'allThreadsStopped': True } # LLDB always stops all threads
+        event = {} # type: Dict[str, Any]
+        event['allThreadsStopped'] = True # LLDB always stops all threads
         # Find the thread that has caused this stop
         for thread in self.process:
             stop_reason = thread.GetStopReason()

@@ -1,7 +1,8 @@
+from typing import Dict, Any
 
 class Handles:
     def __init__(self):
-        self.dict = {}
+        self.dict = {} # type: Dict[int, Any]
         self.next_handle = 1000
 
     def create(self, value):
