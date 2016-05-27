@@ -1,6 +1,6 @@
 {
 	"version": "0.2.0",
-	//"debugServer": 4711,
+	"debugServer": 4711,
 	"configurations": [
 		{
 			"name": "extension",
@@ -45,9 +45,9 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/tests/out/debuggee",
 			"env": { "FOO": "bar" },
-			"args": ["show_env", "FOO"],
+			"args": ["threads"],
 			"cwd": "${workspaceRoot}",
-			"stopOnEntry": false
+			"stopOnEntry": true
 		}
 	]
 }

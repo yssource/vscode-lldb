@@ -3,7 +3,7 @@ import json
 import string
 import logging
 import sys
-from typing import Callable
+from typing import Callable, Any
 
 log = logging.getLogger(__name__)
 
@@ -22,17 +22,17 @@ class ProtocolHandler:
     # The thread will pump messages until either `shutdown()` is called,
     # or `read` returns zero, in which case `handle_request` will be invoked
     # one last time with the `None` argument.
-    def start(self, handle_request):
+    def start(self, handle_request): # type: (ProtocolHandler, Callable[[Any], None]) -> None
         self.handle_request = handle_request
         self.reader_thread = threading.Thread(None, self.pump_requests)
         self.reader_thread.start()
 
-    def shutdown(self):
+    def shutdown(self): # type: (ProtocolHandler) -> None
         self.stopping = True
         self.reader_thread.join()
         self.handle_request = None
 
-    def recv_headers(self):
+    def recv_headers(self): # type: (ProtocolHandler) -> int
         while True:
             pos = self.ibuffer.find(b'\r\n\r\n')
             if pos != -1:
@@ -52,7 +52,7 @@ class ProtocolHandler:
                 raise StopIteration()
             self.ibuffer += data
 
-    def recv_body(self, clen):
+    def recv_body(self, clen): # type: (ProtocolHandler, int) -> bytes
         while len(self.ibuffer) < clen:
             data = self.read(1024)
             self.ibuffer += data
@@ -62,14 +62,14 @@ class ProtocolHandler:
         self.ibuffer = self.ibuffer[clen:]
         return data
 
-    def pump_requests(self):
+    def pump_requests(self): # type: (ProtocolHandler) -> None
         try:
             while not self.stopping:
                 clen = self.recv_headers()
-                data = self.recv_body(clen)
-                data = data.decode('utf-8')
+                raw_data = self.recv_body(clen)
+                data = raw_data.decode('utf-8')
                 log.debug('-> %s', data)
-                message = json.loads(data)
+                message = json.loads(str(data))
                 self.handle_request(message)
         except StopIteration: # Thrown when read() returns 0
             self.handle_request(None)
@@ -77,9 +77,9 @@ class ProtocolHandler:
             log.error(str(e))
             self.handle_request(None)
 
-    def send_message(self, message):
+    def send_message(self, message): # type: (ProtocolHandler, Any) -> None
         data = json.dumps(message)
         log.debug('<- %s', data)
-        enc_data = data.encode('utf-8')
-        self.write(b'Content-Length: %d\r\n\r\n' % len(enc_data))
-        self.write(enc_data)
+        raw_data = data.encode('utf-8')
+        self.write(b'Content-Length: %d\r\n\r\n' % len(raw_data))
+        self.write(raw_data)

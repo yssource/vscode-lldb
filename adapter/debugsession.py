@@ -9,7 +9,7 @@ from . import debugevents
 from . import handles
 from . import terminal
 from . import PY2
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, MutableSet, Optional, Any
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class DebugSession:
         self.exc_breakpoints = [] # type: List[lldb.SBBreakpoint]
         self.target = None # type: Optional[lldb.SBTarget]
         self.process = None # type: Optional[lldb.SBProcess]
-        self.threads = set() # type: set
+        self.threads = set() # type: Set[int]
         self.terminal = None # type: Optional[terminal.Terminal]
         self.launch_args = None # type: Any
 
@@ -205,7 +205,7 @@ class DebugSession:
         return { 'breakpoints': result }
 
     # Create breakpoint location info for a response message
-    def make_bp_resp(self, bp):
+    def make_bp_resp(self, bp): # type: (DebugSession, lldb.SBBreakpoint) -> Dict[str, Any]
         if bp.num_locations == 0:
             return { 'id': bp.GetID(), 'verified': False }
         le = bp.GetLocationAtIndex(0).GetAddress().GetLineEntry()
@@ -247,35 +247,35 @@ class DebugSession:
     def pause_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.process.Stop()
 
-    def continue_request(self, args):
+    def continue_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         # variable handles will be invalid after running,
         # so we may as well clean them up now
         self.var_refs.reset()
         self.process.Continue()
 
-    def next_request(self, args):
+    def next_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.var_refs.reset()
         tid = args['threadId']
         self.process.GetThreadByID(tid).StepOver()
 
-    def stepIn_request(self, args):
+    def stepIn_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.var_refs.reset()
         tid = args['threadId']
         self.process.GetThreadByID(tid).StepInto()
 
-    def stepOut_request(self, args):
+    def stepOut_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         self.var_refs.reset()
         tid = args['threadId']
         self.process.GetThreadByID(tid).StepOut()
 
-    def threads_request(self, args):
+    def threads_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         threads = []
         for thread in self.process:
             tid = thread.GetThreadID()
             threads.append({ 'id': tid, 'name': '%s:%d' % (thread.GetName(), tid) })
         return { 'threads': threads }
 
-    def stackTrace_request(self, args):
+    def stackTrace_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         thread = self.process.GetThreadByID(args['threadId'])
         start_frame = args.get('startFrame', 0)
         levels = args.get('levels', sys.maxsize)
@@ -284,7 +284,7 @@ class DebugSession:
         stack_frames = []
         for i in range(start_frame, start_frame + levels):
             frame = thread.frames[i]
-            stack_frame = { 'id': self.var_refs.create(frame) }
+            stack_frame = { 'id': self.var_refs.create(frame) } # type: Dict[str, Any]
             fn = frame.GetFunction()
             if fn.IsValid():
                 stack_frame['name'] = fn.GetName()
@@ -305,11 +305,11 @@ class DebugSession:
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
-    def scopes_request(self, args):
+    def scopes_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         locals = { 'name': 'Locals', 'variablesReference': args['frameId'], 'expensive': False }
         return { 'scopes': [locals] }
 
-    def variables_request(self, args):
+    def variables_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         variables = []
         obj = self.var_refs.get(args['variablesReference'])
         if obj is None:
@@ -335,7 +335,7 @@ class DebugSession:
 
         return { 'variables': variables }
 
-    def evaluate_request(self, args):
+    def evaluate_request(self, args): # type: (DebugSession, Dict[str, Any]) -> Any
         context = args['context']
         expr = str(args['expression'])
         if context in ['watch', 'hover']:
@@ -387,7 +387,7 @@ class DebugSession:
         ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
         return name, value, dtype, ref
 
-    def disconnect_request(self, args):
+    def disconnect_request(self, args): # type: (DebugSession, Dict[str, Any]) -> None
         if self.process:
             self.process.Kill()
         self.process = None
@@ -395,7 +395,7 @@ class DebugSession:
         self.terminal = None
         self.event_loop.stop()
 
-    def on_request(self, request):
+    def on_request(self, request): # type: (DebugSession, Dict[str, Any]) -> None
         if request is None:
             # Client connection lost; treat this the same as a normal disconnect.
             self.disconnect_request(None)
@@ -427,7 +427,7 @@ class DebugSession:
 
         self.send_message(response)
 
-    def on_target_event(self, event):
+    def on_target_event(self, event): # type: (DebugSession, lldb.SBEvent) -> None
         if lldb.SBProcess.EventIsProcessEvent(event):
             ev_type = event.GetType()
             if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:
@@ -445,7 +445,7 @@ class DebugSession:
             elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
                 self.notify_stdio(ev_type)
 
-    def notify_target_stopped(self, lldb_event):
+    def notify_target_stopped(self, lldb_event): # type: (DebugSession, lldb.SBEvent) -> None
         self.notify_live_threads()
         event = {} # type: Dict[str, Any]
         event['allThreadsStopped'] = True # LLDB always stops all threads
@@ -479,7 +479,7 @@ class DebugSession:
             event['reason'] = 'unknown'
         self.send_event('stopped', event)
 
-    def notify_stdio(self, ev_type):
+    def notify_stdio(self, ev_type): # type: (DebugSession, int) -> None
         if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:
             read_stream = self.process.GetSTDOUT
             category = 'stdout'
@@ -491,7 +491,7 @@ class DebugSession:
             self.send_event('output', { 'category': category, 'output': output })
             output = read_stream(1024)
 
-    def notify_live_threads(self):
+    def notify_live_threads(self): # type: (DebugSession) -> None
         curr_threads = set((thread.GetThreadID() for thread in self.process))
         for tid in self.threads - curr_threads:
             self.send_event('thread', { 'reason': 'exited', 'threadId': tid })
@@ -499,7 +499,7 @@ class DebugSession:
             self.send_event('thread', { 'reason': 'started', 'threadId': tid })
         self.threads = curr_threads
 
-    def send_event(self, event, body):
+    def send_event(self, event, body): # type: (DebugSession, str, Any) -> None
         message = {
             'type': 'event',
             'seq': 0,
@@ -509,7 +509,7 @@ class DebugSession:
         self.send_message(message)
 
     # Write a message to debug console
-    def console_msg(self, output):
+    def console_msg(self, output): # type: (DebugSession, str) -> None
         self.send_event('output', { 'category': 'console', 'output': output })
 
 # For when we need to let user know they screwed up
@@ -519,4 +519,4 @@ class UserError(Exception):
 def opt_str(s): # type: (Optional[str]) -> Optional[str]
     return str(s) if s != None else None
 
-string_type = getattr(__builtins__, 'basestring') if PY2 else str
+string_type = getattr(__builtins__, 'basestring') if PY2 else str # type: type

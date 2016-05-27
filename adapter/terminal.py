@@ -4,16 +4,16 @@ import subprocess
 import string
 
 class Terminal:
-    def __init__(self, tty, socket):
+    def __init__(self, tty, socket): # type: (Terminal, str, socket.socket) -> None
         self.tty = tty
         self.socket = socket
 
-    def __del__(self):
+    def __del__(self): # type: (Terminal) -> None
         self.socket.close()
 
 TIMEOUT = 1 # Timeout in seconds for child opening a socket and sending the tty name
 
-def create():
+def create(): # type: () -> Terminal
     socket_path = '/tmp/vscode-lldb-%d.sock' % os.getpid()
     try: os.unlink(socket_path)
     except OSError: pass
